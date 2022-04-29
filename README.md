@@ -3,8 +3,8 @@
 Hand-in deadline: May 17, 08:00
 
 - [x] Setup project
-- [ ] Setup template
-- [ ] Connect to lecture server
+- [x] Setup template
+- [ ] ~~Connect to lecture server~~ (Posponed)
 - [ ] Run template
 - [ ] Create custom trie
 
