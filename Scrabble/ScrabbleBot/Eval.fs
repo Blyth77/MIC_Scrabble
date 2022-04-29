@@ -4,8 +4,13 @@ module internal Eval
 
     open StateMonad
 
-    let add a b = failwith "Not implemented"      
-    let div a b = failwith "Not implemented"      
+    let add a b = a >>= (fun v1 -> b >>= (fun v2 -> ret (v1 + v2)))    
+    let div a b = a >>= (fun v1 -> b
+                                   >>= (fun v2 ->
+                                      if (v2 <> 0) then
+                                          ret (v1 / v2)
+                                      else
+                                          fail DivisionByZero))     
 
     type aExp =
         | N of int
@@ -37,7 +42,8 @@ module internal Eval
        | Conj of bExp * bExp  (* boolean conjunction *)
 
        | IsVowel of cExp      (* check for vowel *)
-       | IsConsonant of cExp  (* check for constant *)
+       | IsLetter of cExp     (* check for letter *)
+       | IsDigit of cExp      (* check for digit *)
 
     let (.+.) a b = Add (a, b)
     let (.-.) a b = Sub (a, b)

@@ -48,13 +48,15 @@ module internal StateMonad
     let push : SM<unit> = 
         S (fun s -> Success ((), {s with vars = Map.empty :: s.vars}))
 
-    let pop : SM<unit> = failwith "Not implemented"      
+    let pop : SM<unit> = S (fun s -> Success ((), {s with vars = s.vars.Tail}))     
 
-    let wordLength : SM<int> = failwith "Not implemented"      
+    let wordLength : SM<int> = S (fun s -> Success (s.word.Length, s))     
 
-    let characterValue (pos : int) : SM<char> = failwith "Not implemented"      
+    let characterValue (pos : int) : SM<char> =  S (fun s -> if pos < s.word.Length then Success(fst s.word.[pos], s)
+                                                              else Failure (IndexOutOfBounds pos))      
 
-    let pointValue (pos : int) : SM<int> = failwith "Not implemented"      
+    let pointValue (pos : int) : SM<int> =  S (fun s -> if pos < s.word.Length then Success(snd s.word.[pos], s)
+                                                        else Failure (IndexOutOfBounds pos))     
 
     let lookup (x : string) : SM<int> = 
         let rec aux =
@@ -71,4 +73,32 @@ module internal StateMonad
               | None   -> Failure (VarNotFound x))
 
     let declare (var : string) : SM<unit> = failwith "Not implemented"   
-    let update (var : string) (value : int) : SM<unit> = failwith "Not implemented"      
+    let update (var : string) (value : int) : SM<unit> =
+        let rec aux =
+            function
+            | []      -> None
+            // m - current list (environment)
+            // ms - last list (environment/scope) of variables
+            | m :: ms -> 
+                match Map.tryFind var m with
+                // _ is a previous value of variable "var" in the list "m"
+                | Some _ ->
+                    // make a new environment by changing the existing one
+                    // we change the variable(=var) with the value(=value) in the environment m
+                    // an environment stands for a list/scope of variables
+                    let env' = Map.add var value m
+                    // we want to add the changed list (env') to others
+                    match aux ms with
+                    | Some ms' -> Some (env'::ms')
+                    // fix this!!
+                    | None -> Some (env'::ms)
+                // if we haven't found a variable in the current list
+                // then we just move on keeping our current list untouched
+                | None   ->
+                    match aux ms with
+                    | Some ms' -> Some (m::ms')
+                    | None -> None
+        S (fun s -> 
+              match aux (s.vars) with
+              | Some vars' -> Success ((), {s with vars = vars'})
+              | None   -> Failure (VarNotFound var))        
