@@ -5,7 +5,9 @@ Hand-in deadline: May 17, 08:00
 - [x] Setup project
 - [x] Setup template
 - [ ] ~~Connect to lecture server~~ (Posponed)
-- [ ] Run template
+- [x] Run template
+- [ ] ~~Setting up a NuGet package~~ (Postponed)
+- [ ] Import your assignments
 - [ ] Create custom trie
 
 ---
