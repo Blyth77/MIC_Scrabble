@@ -117,5 +117,4 @@ module internal Parser
         defaultSquare : square
         squares       : boardFun
     }
-
     let parseBoardProg (bp : boardProg) : board = failwith "not implemented"
