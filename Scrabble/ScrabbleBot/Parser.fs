@@ -53,6 +53,7 @@ module internal Parser
     let (.>*>) p1 p2  = (p1 .>> spaces) .>> p2
     let (>*>.) p1 p2  = (p1 .>> spaces) >>. p2
     let parenthesise p = pchar '(' >*>. p .>*> pchar ')' 
+    let squarebracket p = pchar '{' >*>. p .>*> pchar '}' 
     let second_part = many (palphanumeric <|> underscore)  |>> fun (charList) -> System.String.Concat(Array.ofList(charList))
     let pid = pletter <|> underscore .>>. second_part |>> fun (c1, s2) -> System.String.Concat(c1, s2)
 
@@ -98,9 +99,58 @@ module internal Parser
      
     do charref := choice [CParse; LowerParse; UpperParse; CharValue; IntToChar]
 
-    let BexpParse = pstring "not implemented"
+    let FirstParse, fref = createParserForwardedToRef<bExp>()
+    let SecondParse, sref = createParserForwardedToRef<bExp>()
+    let ThirdParse, thref = createParserForwardedToRef<bExp>()
+    let BexpParse = FirstParse
 
-    let stmParse = pstring "not implemented"
+    let conjParse = binop (pstring "/\\") SecondParse FirstParse |>> Conj <?> "Conj"
+    let disjParse = binop (pstring "\\/") SecondParse FirstParse |>> Disj <?> "Disj"
+    do fref := choice [conjParse; disjParse; SecondParse]
+    
+    let notEqualParse = binop (pstring "<>") AexpParse AexpParse |>> nAEq <?> "notEqual"
+    let equalParse = binop (pchar '=') AexpParse AexpParse |>> AEq <?> "AEq"
+    let lessThanParse = binop (pchar '<') AexpParse AexpParse |>> ALt <?> "ALt"
+    let smallerEqualParse = binop (pstring "<=") AexpParse AexpParse |>> SOEq <?> "Smaller or Equal"
+    let greaterEqualParse = binop (pstring ">=") AexpParse AexpParse |>> GOEq <?> "Greater or Equal"
+    let greaterParse = binop (pchar '>') AexpParse AexpParse |>> AGt <?> "Greater or Equal"
+    do sref := choice [notEqualParse; equalParse; lessThanParse; smallerEqualParse; greaterEqualParse; greaterParse; ThirdParse]
+
+    let isVowelParse = pstring "isVowel" >*>. parenthesise CexpParse |>> IsVowel <?> "IsVower"
+    let isLetterParse = pstring "isLetter" >*>. parenthesise CexpParse |>> IsLetter <?> "IsLetter"
+    let isDigitParse = pstring "isDigit" >*>. parenthesise CexpParse |>> IsDigit <?> "IsDigit"
+    let negParse = pchar '~' >*>. FirstParse |>> (~~) <?> "Not"
+    let trueParse = pTrue |>> (fun _ -> TT) <?> "True"
+    let falseParse = pFalse |>> (fun _ -> FF) <?> "False"
+    let bParParse = parenthesise FirstParse
+    do thref := choice [isVowelParse; isLetterParse; isDigitParse; negParse; trueParse; falseParse; bParParse]
+    (*
+    type stm =                (* statements *)
+    | Declare of string       (* variable declaration *)
+    | Ass of string * aExp    (* variable assignment *)
+    | Skip                    (* nop *)
+    | Seq of stm * stm        (* sequential composition *)
+    | ITE of bExp * stm * stm (* if-then-else statement *)
+    | While of bExp * stm     (* while statement *)
+
+    *)
+
+    let ITE2 ((a, b), c) = ITE (a, b, c)
+    let IT (b, stm) = ITE (b, stm, Skip) 
+
+    let outerParse, ouref = createParserForwardedToRef<stm>()
+    let innerParse, inref = createParserForwardedToRef<stm>()
+    let stmntParse = outerParse
+
+    let seqParse = outerParse .>*> pchar ';' .>*>.  outerParse |>> Seq <?> "Seq"
+    do  ouref := choice [seqParse; innerParse]
+
+    let ITEParse = pstring "if" >*>. parenthesise BexpParse .>*>  pstring "then" .>*>. squarebracket outerParse .>*> pstring "else" .>*>. squarebracket outerParse |>> ITE2 <?> "ITE"
+    let ITParse = pstring "if" >*>. parenthesise BexpParse .>*>  pstring "then" .>*>. squarebracket outerParse |>> IT <?> "ITE"
+    let whileParse = pstring "while" >*>. parenthesise BexpParse .>*> pstring "do" .>*>. squarebracket outerParse |>> While <?> "While"
+    let declareParse = pstring "declare" >>. spaces1 >>.  pid |>> Declare <?> "Declare"
+    let assParse = binop (pstring ":=") pid AexpParse |>> Ass <?> "Ass"
+    do inref := choice [declareParse; ITEParse; ITParse; whileParse; assParse]
 
     (* The rest of your parser goes here *)
 

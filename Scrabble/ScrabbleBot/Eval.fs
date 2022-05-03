@@ -61,7 +61,14 @@ module internal Eval
     let (.<>.) a b = ~~(a .=. b)
     let (.<=.) a b = a .<. b .||. ~~(a .<>. b)
     let (.>=.) a b = ~~(a .<. b)                (* numeric greater than or equal to *)
-    let (.>.) a b = ~~(a .=. b) .&&. (a .>=. b) (* numeric greater than *)    
+    let (.>.) a b = ~~(a .=. b) .&&. (a .>=. b) (* numeric greater than *)
+    
+    let nAEq (a, b) = (.<>.) a b
+    let Disj (a, b) = (.||.) a b
+    let Impli (a, b) = (.->.) a b
+    let SOEq (a, b) = (.<=.) a b
+    let GOEq (a, b) = (.>=.) a b
+    let AGt (a, b) = (.>.) a b
 
     let arithEval a : SM<int> = failwith "Not implemented"      
 
