@@ -10,7 +10,6 @@ module internal Parser
     open Eval
     open FParsecLight.TextParser     // Industrial parser-combinator library. Use for Scrabble Project.
     
-    
     let pIntToChar  = pstring "intToChar"
     let pPointValue = pstring "pointValue"
 
@@ -142,7 +141,7 @@ module internal Parser
     let innerParse, inref = createParserForwardedToRef<stm>()
     let stmntParse = outerParse
 
-    let seqParse = outerParse .>*> pchar ';' .>*>.  outerParse |>> Seq <?> "Seq"
+    let seqParse = innerParse .>*> pchar ';' .>*>.  outerParse |>> Seq <?> "Seq"
     do  ouref := choice [seqParse; innerParse]
 
     let ITEParse = pstring "if" >*>. parenthesise BexpParse .>*>  pstring "then" .>*>. squarebracket outerParse .>*> pstring "else" .>*>. squarebracket outerParse |>> ITE2 <?> "ITE"
