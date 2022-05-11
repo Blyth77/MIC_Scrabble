@@ -72,7 +72,14 @@ module internal StateMonad
               | Some v -> Success (v, s)
               | None   -> Failure (VarNotFound x))
 
-    let declare (var : string) : SM<unit> = failwith "Not implemented"   
+    let declare (var : string) : SM<unit> =
+        S (fun state  ->
+            match state with
+            | state when state.reserved.Contains(var) -> Failure(ReservedName var)
+            | state when state.vars.Head.ContainsKey(var) -> Failure(VarExists var)
+            | state when state.vars.IsEmpty -> Success((), {state with vars = (Map.add var 0 state.vars.Head)::[]})
+            | state -> Success((), {state with vars = state.vars.Head.Add(var, 0):: state.vars.Tail})
+            )   
     let update (var : string) (value : int) : SM<unit> =
         let rec aux =
             function
