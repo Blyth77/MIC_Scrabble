@@ -7,7 +7,7 @@ Hand-in deadline: May 17, 08:00
 - [ ] ~~Connect to lecture server~~ (Posponed)
 - [x] Run template
 - [ ] ~~Setting up a NuGet package~~ (Postponed)
-- [ ] Import your assignments
+- [x] Import your assignments
 - [ ] Create custom trie
 
 ---
