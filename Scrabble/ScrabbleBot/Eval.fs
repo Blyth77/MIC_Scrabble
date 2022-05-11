@@ -179,11 +179,6 @@
         defaultSquare : squareFun
         squares       : boardFun
     }
-//    let mkBoard c defaultSq boardStmnt ids = {
-//        center = c; 
-//        defaultSquare = stmntToSquareFun defaultSq; 
-//        squares = List.map (fun (x, y) -> stmntToSquareFun y) ids |> Map.ofList  |> stmntToBoardFun boardStmnt
-//        }
     let stmntToSquareFun =
         fun stm w pos acc ->
             mkState [("_pos_", pos); ("_acc_", acc); ("_result_", 0)] w ["_pos_"; "_acc_"; "_result_"]
