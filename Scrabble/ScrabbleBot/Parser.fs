@@ -7,8 +7,9 @@ module internal Parser
 
     open ScrabbleUtil // NEW. KEEP THIS LINE.
     open System
+    open StateMonad
     open Eval
-    open FParsecLight.TextParser     // Industrial parser-combinator library. Use for Scrabble Project.
+    open FParsecLight.TextParser     // Industrial parser-combinator library. Use for Scrabble Project.    
     
     let pIntToChar  = pstring "intToChar"
     let pPointValue = pstring "pointValue"
@@ -30,11 +31,11 @@ module internal Parser
     let pdo       = pstring "do"
     let pdeclare  = pstring "declare"
 
-    let whitespaceChar = satisfy Char.IsWhiteSpace <?> "whitespace"
-    let pletter        = satisfy Char.IsLetter <?> "letter"
+    let whitespaceChar = satisfy System.Char.IsWhiteSpace <?> "whitespace"
+    let pletter        = satisfy System.Char.IsLetter <?> "letter"
     
-    let palphanumeric  = satisfy Char.IsLetterOrDigit <?> "alphanumeric"
-    let pletters = many palphanumeric |>> fun (charList) -> String.Concat(Array.ofList(charList))
+    let palphanumeric  = satisfy System.Char.IsLetterOrDigit <?> "alphanumeric"
+    let pletters = many palphanumeric |>> fun (charList) -> System.String.Concat(Array.ofList(charList))
     
 
     let anyOf ss =
@@ -51,17 +52,10 @@ module internal Parser
     let (.>*>.) p1 p2 = (p1 .>> spaces) .>>. p2 
     let (.>*>) p1 p2  = (p1 .>> spaces) .>> p2
     let (>*>.) p1 p2  = (p1 .>> spaces) >>. p2
-<<<<<<< HEAD
-    let parenthesise p = pchar '(' >*>. p .>*> pchar ')'
-    let braces p = pchar '{' >*>. p .>*> pchar '}' 
-    let second_part = many (palphanumeric <|> underscore)  |>> fun (charList) -> String.Concat(Array.ofList(charList))
-    let pid = pletter <|> underscore .>>. second_part |>> fun (c1, s2) -> String.Concat(c1, s2)
-=======
     let parenthesise p = pchar '(' >*>. p .>*> pchar ')' 
     let squarebracket p = pchar '{' >*>. p .>*> pchar '}' 
     let second_part = many (palphanumeric <|> underscore)  |>> fun (charList) -> System.String.Concat(Array.ofList(charList))
     let pid = pletter <|> underscore .>>. second_part |>> fun (c1, s2) -> System.String.Concat(c1, s2)
->>>>>>> 4016d9dd89c926318a3dff7f0a0c8ddd447f485b
 
     
     let unop parser1 parser2 =
@@ -71,10 +65,9 @@ module internal Parser
     let TermParse, tref = createParserForwardedToRef<aExp>()
     let ProdParse, pref = createParserForwardedToRef<aExp>()
     let AtomParse, aref = createParserForwardedToRef<aExp>()
-    let CharParse, charref = createParserForwardedToRef<cExp>()
-    
     let AexpParse = TermParse
-    let CexpParse = CharParse
+    
+    let CharParse, charref = createParserForwardedToRef<cExp>()
 
     let AddParse = binop (pchar '+') ProdParse TermParse |>> Add <?> "Add"
     let SubParse = binop (pchar '-') ProdParse TermParse |>> Sub <?> "Sub"
@@ -84,61 +77,25 @@ module internal Parser
     let DivParse = binop (pchar '/') AtomParse ProdParse |>> Div <?> "Div"
     let ModParse = binop (pchar '%') AtomParse ProdParse |>> Mod <?> "Mod"
     do pref := choice [MulParse; DivParse; ModParse; AtomParse]
-     
-    // <?> in case of failure write to the console a message "Int"
+        
     let NParse   = pint32 |>> N <?> "Int"
     let VParse =  pid |>> V <?> "Var"
+  
     let NegParse = pchar '-' >>. AexpParse |>> (fun x -> Mul (N -1, x)) <?>  "Negation"
-    //let NegParse = pchar '-' >>. pint32 |>> (fun x -> Mul (N -1, N x)) <?>  "Negation"
     let PVParse = pstring "pointValue"  >*>. parenthesise AexpParse |>> PV <?> "PV"
     let CharToInt = pstring "charToInt" >*>. parenthesise CharParse |>> CharToInt <?> "CharToInt"
     let ParParse = parenthesise TermParse
     do aref := choice [CharToInt; NegParse; PVParse; NParse; VParse; ParParse]
     
+    let CexpParse = CharParse
     let CParse = pchar ''' >>. anyChar .>> pchar ''' |>> C <?> "C"
     let LowerParse = pstring "toLower" >*>. parenthesise CexpParse |>> ToLower <?> "toLower"
     let UpperParse = pstring "toUpper" >*>. parenthesise CexpParse |>> ToUpper <?> "toUpper"
     let CharValue = pstring "charValue" >*>. parenthesise AexpParse |>> CV <?> "CV"
     let IntToChar = pstring "intToChar" >*>. parenthesise AexpParse |>> IntToChar <?> "IntToChar"
+     
     do charref := choice [CParse; LowerParse; UpperParse; CharValue; IntToChar]
 
-<<<<<<< HEAD
-    let BTermParse, btref = createParserForwardedToRef<bExp>()
-    let BProdParse, bpref = createParserForwardedToRef<bExp>()
-    // do I need BAtomParse?
-    let BAtomParse, baref = createParserForwardedToRef<bExp>()
-    
-    let BexpParse = BTermParse
-    
-    // or BAtom, BProd
-    let ConjParse = binop (pstring @"/\") BProdParse BTermParse |>> Conj <?> "Conjunction"
-    let DisjParse = binop (pstring @"\/") BProdParse BTermParse |>> (fun (x, y) -> Not(Conj(Not x, Not y))) <?> "Disjunction"
-    do btref := choice [ConjParse; DisjParse; BProdParse]
-    
-    
-    let EqParse = binop (pchar '=') AtomParse ProdParse |>> AEq <?> "Equal"
-    let NotEqParse = binop (pstring @"<>") AtomParse ProdParse |>> (fun (x, y) -> Not(AEq(x, y))) <?> "Not equal"
-    let LessParse = binop (pchar '<') AtomParse ProdParse |>> ALt <?> "Less than"
-    // Conj(Not(ALt (x, y)), Not(AEq (x,y))) -> not "<" and not "="
-    // Not(Conj(Not(ALt (x, y)), Not(AEq (x,y)))))  -> not (not "<" and not "=") == "<" or "="
-    // Not (Conj (Not (ALt (N 6,N 3)),Not (Not (Not (AEq (N 6,N 3))))))
-    let LessOrEqParse = binop (pstring @"<=") AtomParse ProdParse |>> (fun (x, y) ->
-                                                                Not(Conj(Not(ALt (x, y)), Not(AEq (x,y))))) <?> "Less or Equal"
-    let MoreOrEqParse = binop (pstring @"=>") AtomParse ProdParse |>> (fun (x, y) -> Not(ALt (x, y))) <?> "More or equal"
-    // ">" == not "==" and not "<"
-    let MoreParse = binop (pchar '>') AtomParse ProdParse |>> fun (x,y) -> Conj (Not (AEq (x, y)), Not (ALt (x ,y)))
-    do bpref := choice [EqParse; NotEqParse; LessParse; LessOrEqParse; MoreOrEqParse; MoreParse; BAtomParse]
-    
-    let NotParse = unop (pchar '~') BexpParse |>> Not <?> "Not"
-    let TrueParse = pTrue |>> (fun _ -> TT) <?> "True"
-    let FalseParse = pFalse |>> (fun _ -> FF) <?> "False"
-    let BParParse = parenthesise BTermParse
-    do baref := choice [NotParse; TrueParse; FalseParse; BParParse]
-    
-    
-    /// let stmTermParse, stmtref = createParserForwardedToRef<stm>()
-   // let stmProdParse, stmpref = createParserForwardedToRef<stm>()
-=======
     let FirstParse, fref = createParserForwardedToRef<bExp>()
     let SecondParse, sref = createParserForwardedToRef<bExp>()
     let ThirdParse, thref = createParserForwardedToRef<bExp>()
@@ -164,16 +121,6 @@ module internal Parser
     let falseParse = pFalse |>> (fun _ -> FF) <?> "False"
     let bParParse = parenthesise FirstParse
     do thref := choice [isVowelParse; isLetterParse; isDigitParse; negParse; trueParse; falseParse; bParParse]
-    (*
-    type stm =                (* statements *)
-    | Declare of string       (* variable declaration *)
-    | Ass of string * aExp    (* variable assignment *)
-    | Skip                    (* nop *)
-    | Seq of stm * stm        (* sequential composition *)
-    | ITE of bExp * stm * stm (* if-then-else statement *)
-    | While of bExp * stm     (* while statement *)
-
-    *)
 
     let ITE2 ((a, b), c) = ITE (a, b, c)
     let IT (b, stm) = ITE (b, stm, Skip) 
@@ -191,39 +138,51 @@ module internal Parser
     let declareParse = pstring "declare" >>. spaces1 >>.  pid |>> Declare <?> "Declare"
     let assParse = binop (pstring ":=") pid AexpParse |>> Ass <?> "Ass"
     do inref := choice [declareParse; ITEParse; ITParse; whileParse; assParse]
->>>>>>> 4016d9dd89c926318a3dff7f0a0c8ddd447f485b
 
-    //let stmParse = stmTermParse
-    let stmParse, stmref = createParserForwardedToRef<stm>()
+    type coord      = int * int
+    type squareProg = Map<int, string>
+    (*type boardProg  = {
+            prog       : string;
+            squares    : Map<int, squareProg>
+            usedSquare : int
+            center     : coord
     
-    let SeqParse = stmParse .>*> pchar ';' .>*>. stmParse |>> Seq <?> "Sequential"
-    // one space between the keyword and the identifier
-    let DeclareParse = pdeclare .>>. whitespaceChar >*>. pid |>> Declare <?> "Declare"
-    let AssignParse =  binop (pstring ":=") pid AexpParse |>> Ass <?> "Ass"
-    let ITEParse = pif >*>. parenthesise BexpParse .>*> pthen
-                   .>*>. braces stmParse .>*> pelse .>*>. braces stmParse
-                   |>> (fun ((x, y), z) -> ITE(x, y, z)) <?> "If then else"
-    let ITParse = pif >*>. parenthesise BexpParse .>*> pthen
-                   .>*>. braces stmParse
-                   |>> (fun (x, y) -> ITE(x, y, Skip)) <?> "If then"
-                   
-    let WhileParse = pwhile >*>. parenthesise BexpParse .>*> pdo
-                     .>*>. braces stmParse
-                     |>> While <?> "While"
-    do stmref := choice [SeqParse; DeclareParse; AssignParse; ITEParse; ITParse; WhileParse]
-    (* The rest of your parser goes here *)
+            isInfinite : bool   // For pretty-printing purposes only
+            ppSquare   : string // For pretty-printing purposes only
+        }*)
 
     type word   = (char * int) list
-    type square = Map<int, word -> int -> int -> int>
+    type square = Map<int, squareFun>
 
-    let parseSquareFun _ = failwith "not implemented"
+    let parseSquareProg a = a |> Map.map (fun _ s -> run stmntParse s) |> Map.map (fun _ s -> getSuccess s) |> Map.map (fun _ s -> stmntToSquareFun s)
 
-    let parseBoardFun _ = failwith "not implemented"
+    let parseBoardProg a (b : square) = run stmntParse a |> getSuccess |> (fun suc -> stmntToBoardFun suc b)
 
-    type boardFun = coord -> square option
+    type boardFun = coord -> StateMonad.Result<square option, StateMonad.Error>
+
     type board = {
         center        : coord
         defaultSquare : square
         squares       : boardFun
     }
-    let parseBoardProg (bp : boardProg) : board = failwith "not implemented"
+
+    let boardState x y =
+        mkState [("_x_", x); ("_y_", y); ("_result_", 0)] [] [ "_x_"; "_y_"; "_result_" ]
+        
+    let parseBoardFun (str : string) (squares : Map<int, square>) : boardFun =
+        let stm = getSuccess (run stmntParse str)
+        let boardfun (x, y) =
+            let sm = stmntEval stm >>>= lookup "_result_" >>= fun id ->
+                match Map.tryFind id squares with
+                    | Some value -> ret (Some value)
+                    | _ -> ret None
+            evalSM (boardState x y) sm
+        boardfun
+
+    let mkBoardd (bp : boardProg) : board = 
+        let m' = Map.map (fun _ s -> parseSquareProg s) bp.squares
+        {
+        center = bp.center; 
+        defaultSquare = Map.find ((fun (x,_) -> x) bp.center) m'
+        squares = parseBoardFun bp.prog m'
+        }

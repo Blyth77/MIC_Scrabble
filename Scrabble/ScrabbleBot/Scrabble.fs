@@ -11,6 +11,7 @@ open ScrabbleUtil.DebugPrint
 
 module RegEx =
     open System.Text.RegularExpressions
+    open Parser
 
     let (|Regex|_|) pattern input =
         let m = Regex.Match(input, pattern)
@@ -114,7 +115,7 @@ module Scrabble =
 
         //let dict = dictf true // Uncomment if using a gaddag for your dictionary
         let dict = dictf false // Uncomment if using a trie for your dictionary
-        let board = Parser.parseBoardProg boardP
+        let board = Parser.mkBoardd boardP
                   
         let handSet = List.fold (fun acc (x, k) -> MultiSet.add x k acc) MultiSet.empty hand
 
