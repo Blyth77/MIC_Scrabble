@@ -29,7 +29,7 @@ module Dictionary
         match x with
         | Node (b, m) when Map.containsKey c m -> 
             match Map.find c m with
-            | Node (b,m) -> Some(b, Node(b,m))
+            | Node (b, m) -> Some(b, Node(b, m))
             | Leaf b -> Some(b, Leaf b)
         | Leaf b -> Some(b, empty ())
         | _ -> None 

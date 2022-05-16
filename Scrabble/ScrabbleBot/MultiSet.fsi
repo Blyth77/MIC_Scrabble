@@ -7,3 +7,7 @@ module internal MultiSet
     val empty : MultiSet<'a>
     val add   : 'a -> uint32 -> MultiSet<'a> -> MultiSet<'a>
     val fold  : ('b -> 'a -> uint32 -> 'b) -> 'b -> MultiSet<'a> -> 'b
+    val subtract: MultiSet<'a> -> MultiSet<'a> -> MultiSet<'a>
+    val ofList: 'a list -> MultiSet<'a>
+    val toList: MultiSet<'a> -> 'a list
+    val size  : MultiSet<'a> -> uint32

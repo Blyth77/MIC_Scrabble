@@ -6,8 +6,8 @@ module internal MultiSet
     let empty =
         MS Map.empty
     let isEmpty (MS m) = Map.isEmpty m
-    let size(MS ms) =
-        Map.fold (fun state key value -> state + value) 0u ms
+    let size (MS ms) =
+        Map.fold (fun state _ value -> state + value) 0u ms
     let contains key (MS m) =
         Map.containsKey key m
     
@@ -23,8 +23,12 @@ module internal MultiSet
          | Some value ->  Map.add key (value + count) ms
         |> MS
 
-    let addSingle key ms =
-        add key 1u ms 
+    let addSingle key (MS ms) =
+         match Map.tryFind key ms with
+         | None -> Map.add key 1u ms
+         | Some value ->  Map.add key (value + 1u) ms
+        |> MS
+        //add key 1u ms 
 
     let remove key count (MS ms) =
      match Map.tryFind key ms with
@@ -33,7 +37,6 @@ module internal MultiSet
                          if value > count then Map.add key (value - count) ms
                          else Map.remove key ms
      |> MS
-    
     let removeSingle key ms =
      remove key 1u ms
     let fold f acc (MS values) =
@@ -41,3 +44,11 @@ module internal MultiSet
      
     let foldBack f (MS values) acc =
         Map.foldBack f values acc
+
+    let ofList lst =  List.fold (fun acc key -> addSingle key acc) empty lst
+    let toList (MS ms) = Map.toList ms
+                         |> List.collect (fun (key, value) -> List.replicate (int value) key)
+    let subtract ms1 ms2 =
+        fold (fun acc key value -> remove key value acc) ms1 ms2
+    
+    
