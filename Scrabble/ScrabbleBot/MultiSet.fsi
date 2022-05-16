@@ -11,3 +11,4 @@ module internal MultiSet
     val ofList: 'a list -> MultiSet<'a>
     val toList: MultiSet<'a> -> 'a list
     val size  : MultiSet<'a> -> uint32
+    val toMap : MultiSet<'a> -> Map<'a, uint32>

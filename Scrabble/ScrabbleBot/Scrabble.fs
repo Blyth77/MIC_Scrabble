@@ -1,5 +1,6 @@
 ﻿namespace MIC
 
+open System.Collections.Generic
 open ScrabbleUtil
 open ScrabbleUtil.ServerCommunication
 open MultiSet
@@ -13,7 +14,6 @@ open ScrabbleUtil.DebugPrint
 module RegEx =
     open System.Text.RegularExpressions
     open Parser
-
     let (|Regex|_|) pattern input =
         let m = Regex.Match(input, pattern)
         if m.Success then Some(List.tail [ for g in m.Groups -> g.Value ])
@@ -48,23 +48,24 @@ module State =
     type state = {
         board         : Parser.board
         dict          : Dictionary.Dict
-        players       : List<int>
+        players       : uint32 list
         playerNumber  : uint32
         playerTurn    : uint32
         tiles         : Map<uint32, tile>
-        squares       : Map<coord, char * int>
+        squares       : Map<coord, uint32 * (char * int)>
         hand          : MultiSet.MultiSet<uint32>
     }
 
-    let mkState b d pn h pl turn ts sq = {
+    let mkState b d pl pn turn sq h ts = {
                             board = b
                             dict = d
-                            playerNumber = pn
-                            hand = h
                             players = pl
+                            playerNumber = pn
                             playerTurn = turn
+                            squares = sq
+                            hand = h
                             tiles = ts
-                            squares = sq }
+                             }
 
     let board st         = st.board
     let dict st          = st.dict
@@ -75,18 +76,162 @@ module State =
     let squares st       = st.squares
     let tiles st         = st.tiles
     
-   
-    // hand: MultiSet<tileId: unit32>
-    // moves: coord: (x, y) * (tileId: uint32) * (letter: char, pointValue: int)
-    // newTiles: list <tileId: uint32, numTiles: uint32>
     let updateHand (hand: MultiSet<uint32>) (moves: list<coord * (uint32 * (char * int))>) (newTiles: list<uint32 * uint32>) =
         let usedTiles = List.map (fun m -> fst (snd m)) moves |> ofList
         let newHand   = subtract hand usedTiles
         List.fold (fun acc (tileId, num) -> add tileId num acc) newHand newTiles
         
-    let updateSquares (moves: list<coord * (uint32 * (char * int))>) (prevSquares: Map<coord, char * int>) =
-        List.fold (fun acc m -> Map.add (fst m) (snd (snd m)) acc) prevSquares moves
+    let updateBoard (moves: list<coord * (uint32 * (char * int))>) (prevBoard: Map<coord, uint32 * (char * int)>) =
+        List.fold (fun acc m -> Map.add (fst m) (snd m) acc) prevBoard moves
    
+
+module Move =
+    type availableSpace = (uint32 * uint32)
+    let allCombinations lst : string list =
+        let rec comb accLst elemLst =
+            match elemLst with
+            | h::t when Seq.length h = 1 ->
+                let character : char = Seq.head h |> (fun (a,_) -> a)
+                let next = [character]::List.map (fun el -> character::el) accLst @ accLst
+                comb next t
+            | _::t ->
+                comb accLst t
+            | _ -> accLst
+        let charlists = comb [] lst
+        List.map (fun (a : char list) -> System.String.Concat(Array.ofList(a))) charlists
+    let findIdAndPoint s pieces =
+        let piece = List.filter (fun (a, b) -> (fun (c, d) -> c = s) (Seq.head b)) pieces |> List.head
+        (fun (x,y) -> (fun (z,p) -> (x,p)) (Seq.head y)) piece
+        
+    let stringToMove (s : string) pieces coord (space : (int * bool)) =
+        let piecesList = Map.toList pieces
+        let rec aux (ycoord : int) str =
+            match str with
+            | a::t ->
+                if (fun (_, x) -> x) space then
+                    let x = ((fun (x, _) -> x) coord) + (ycoord + 1)
+                    let y = ((fun (_, y) -> y) coord)
+                    let (id, points) = findIdAndPoint a piecesList
+                    let p = if a = 'A' then 1u else id
+                    let obj = sprintf "%d %d %d%A%d" x y p a points
+                    obj :: aux (ycoord + 1) t
+                else
+                    let x = ((fun (x, _) -> x) coord)
+                    let y = ((fun (_, y) -> y) coord) + (ycoord + 1)
+                    let (id, points) = findIdAndPoint a piecesList
+                    let strip chars = String.collect (fun c -> if Seq.exists((=)c) chars then "" else string c)
+                    let teil = strip "'" (sprintf "%d%A%d" id a points)
+                    let obj =strip "\"" (sprintf "%d %d %A" x y teil)
+                    obj :: aux (ycoord + 1) t
+            | _ -> []
+        let slist = aux 0 (Seq.toList s)
+        String.concat " " slist
+        
+    let coordToSquarefun (state : State.state) c =
+        match state.board.squares c with
+        | StateMonad.Success x ->
+            match x with
+            | Some p -> p
+            | None -> failwith "None"
+        | StateMonad.Failure _ -> failwith "No state"
+        
+    let toWord (m : ((int * int) * (uint32 * (char * int))) list) : Eval.word =
+        List.map (fun (c, (x, y)) -> y) m
+        
+    let getSinglePoint (p : Parser.square) t (w : Eval.word) =
+        let item = Map.find 0 p
+        match item w t 0 with
+            | StateMonad.Success x -> x
+            | StateMonad.Failure y -> 0
+    
+    let getWholePoint (p : Parser.square) t (w : Eval.word) =
+        let item = Map.find 1 p
+        match item w t 0 with
+            | StateMonad.Success x -> x
+            | StateMonad.Failure y -> 0
+    
+    let calculatePoints (m : ((int * int) * (uint32 * (char * int))) list) state  =
+        let word = toWord m
+        let numberList = List.map (fun (c, (_, (_,p))) -> (getSinglePoint (coordToSquarefun state c) p word)) m
+        let number = List.fold (fun a b -> a + b) 0 numberList
+        if (Map.count (coordToSquarefun state ((fun (x, _) -> x) (List.head m)))) = 1 then number else number * 2 
+    
+    let wordToString (word : Eval.word) =
+            let temp = List.map (fun (x, _) -> x) word
+            System.String.Concat(Array.ofList(temp))
+            
+    let findWordCombination (state : State.state) (avSpace : availableSpace) dict coord =
+        let characters = Seq.toList (Map.values(Map.map (fun s _ -> Map.find s state.tiles) (MultiSet.toMap state.hand)))
+        let combinations = allCombinations characters                
+        let space = (fun (x,y) -> if x > y then (x, true) else (y, false)) avSpace
+        let allPossible = List.filter (fun m -> Dictionary.lookup m dict) combinations |> List.filter (fun m -> m.Length <= (fun (x,_) -> x) ((fun (x,y) -> (int x,y)) space))        
+        let allPossibleWords = List.map (fun x -> stringToMove x state.tiles coord ((fun (x,y) -> (int x,y)) space)) allPossible
+        let parsed = List.map RegEx.parseMove allPossibleWords
+        if (List.length parsed = 0) then List.empty else List.map (fun a -> (a, calculatePoints a state)) parsed
+
+    let checkSquareFree (coord: coord) (st : State.state) =
+        match Map.tryFind coord st.squares with
+        | Some value -> false
+        | None   -> true
+   
+    let rec countSpacesDown count (x, y) (st: State.state) =
+        match ((size st.hand) > count) with
+        | false -> count
+        | true ->
+            match (checkSquareFree (x, y + 1) st)
+                && (checkSquareFree (x + 1, y + 1) st)
+                && (checkSquareFree (x - 1, y + 1) st)
+                && (checkSquareFree (x, y + 2) st) with
+            | true -> countSpacesDown (count + 1u) (x, y + 1) st
+            | false -> count
+            
+    let rec countSpacesRight count (x, y) (st: State.state) =
+        match ((size st.hand) > count) with
+        | false -> count
+        | true ->
+            match (checkSquareFree  (x + 1, y) st) 
+                    && (checkSquareFree (x + 1, y + 1) st)
+                    && (checkSquareFree (x + 1, y - 1) st)
+                    && (checkSquareFree  (x + 2, y) st) with
+                    | true -> countSpacesRight (count + 1u) (x + 1, y) st
+                    | false -> count
+                    
+    let calculateAvailableSpace (randomTile: coord * (uint32 * (char * int))) (st: State.state) =
+       (countSpacesDown 0u (fst randomTile) st, countSpacesRight 0u (fst randomTile) st)
+       
+    let findAvailableTile (board: Map<coord, uint32 * (char * int)>) (st: State.state) =
+         // head = coord * uint32 * (char * int)
+         // key = coord
+         // value = uint32 * (char * int) = Tile
+        let rec aux m =
+            match m with
+              | head :: tail ->
+                  match calculateAvailableSpace head st with
+                  | 0u, 0u -> aux tail 
+                  | _ -> (head, calculateAvailableSpace head st)
+              | [] -> failwith "no available squares"
+        aux (board |> Map.toList)
+
+    let temp ((a, (b, (x, d))), (e, f)) c state =
+        c (e,f) x a
+        
+    let move (state : State.state) =
+        let allPossible =
+            if (Map.containsKey (0,0) state.squares) then
+                let step c =
+                    match (Dictionary.step c state.dict) with
+                    | Some (_,y) -> y
+                    | None _ -> state.dict
+                let combinations d c a = findWordCombination state d (step c) a
+                temp (findAvailableTile state.squares state) combinations state
+                
+            else
+                findWordCombination state (7u,7u) state.dict (0,-1)
+                //(fun ((a : coord), (_, ((c : char), _)), (d : availableSpace)) -> combinations d c a) (findAvailableTile state.squares state)
+        if (List.length allPossible = 0) then List.empty else (fun (x, _) -> x) (List.sortByDescending (fun (_, y) -> y) allPossible |> List.head)
+       
+            
+                
 module Scrabble =
     open System.Threading
 
@@ -119,48 +264,63 @@ module Scrabble =
         | Some value -> Some value
         | None   -> None
     let a (st: State.state) = Map.toList st.squares 
-    
-    let removePlayer (st: State.state) playerNumber =
-        match List.tryFind playerNumber st.players with
-        | Some index -> List.removeAt index st.players
-        | None -> failwith "."
         
        
-    
+    let generateTurn (st : State.state) = 
+                let turn = st.playerTurn + 1u
+                if turn > st.playerNumber then 1u
+                else turn
+                
+    let mutable countPass = 0
     let playGame cstream pieces (st : State.state) =
-
+    
         let rec aux (st : State.state) =
             Print.printHand pieces (State.hand st)
+            let turn = generateTurn st
+
+            let newPlayers =
+                match st.players with
+                | head :: tail -> tail @ [ head ]
+                | [] -> []
+            //failwith "TEST DONE"
 
             // remove the force print when you move on from manual input (or when you have learnt the format)
             forcePrint "Input move (format '(<x-coordinate> <y-coordinate> <piece id><character><point-value> )*', note the absence of space between the last inputs)\n\n"
-            let input =  System.Console.ReadLine()
-            let move = RegEx.parseMove input
+            //let input =  System.Console.ReadLine()
+            //let move = RegEx.parseMove input
 
+            let move = Move.move st
+            //printfn "MOVE: %A" move
+            //let input =  System.Console.ReadLine()
+            //let move = Move.move st
+            
+            //failwith "DONE"
             debugPrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
             send cstream (SMPlay move)
-
             let msg = recv cstream
             debugPrint (sprintf "Player %d <- Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
+            
+
 
             match msg with
             | RCM (CMPlaySuccess(ms, points, newPieces)) ->
-
                 (* Successful play by you. Update your state (remove old tiles, add the new ones, change turn, etc) *)
-                let st' = st // This state needs to be updated
+                let newHand = State.updateHand st.hand ms newPieces
+                let newBoard = State.updateBoard ms st.squares
+                let st' = State.mkState st.board st.dict newPlayers st.playerNumber (generateTurn st) newBoard newHand st.tiles
                 aux st'
             | RCM (CMPlayed (pid, ms, points)) ->
                 (* Successful play by other player. Update your state *)
-                let st' = st // This state needs to be updated
+                let newBoard = State.updateBoard ms st.squares
+                let st' = State.mkState st.board st.dict newPlayers st.playerNumber (generateTurn st) newBoard st.hand st.tiles // This state needs to be updated
                 aux st'
             | RCM (CMPlayFailed (pid, ms)) ->
                 (* Failed play. Update your state *)
-                let st' = st // This state needs to be updated
+                let st' = State.mkState st.board st.dict newPlayers st.playerNumber (generateTurn st) st.squares st.hand st.tiles // This state needs to be updated
                 aux st'
             | RCM (CMGameOver _) -> ()
             | RCM a -> failwith (sprintf "not implmented: %A" a)
             | RGPE err -> printfn "Gameplay Error:\n%A" err; aux st
-
 
         aux st
 
@@ -187,6 +347,24 @@ module Scrabble =
         let board = Parser.mkBoardd boardP
                   
         let handSet = List.fold (fun acc (x, k) -> MultiSet.add x k acc) MultiSet.empty hand
-
-        //fun () -> playGame cstream tiles (State.mkState board dict playerNumber handSet)
+        
+        let wordToString (word : Eval.word) =
+            let temp = List.map (fun (x, _) -> x) word
+            System.String.Concat(Array.ofList(temp))
+            
+          
+        let players = [ 1u .. numPlayers ]
+            
+        let tester () =
+            let state = State.mkState board dict ([playerNumber] @ List.Empty) playerNumber playerTurn Map.empty handSet tiles
+            let avSpace = (8u,8u)
+            let dict = state.dict
+            let coord = (0,0)
+            let find = Move.findWordCombination state avSpace dict coord
+            for (x,y) in find do
+                let word = Move.toWord x |> wordToString
+                printfn "%d -> (%A)\n" y word                
+        tester ()
+        
+        fun () -> playGame cstream tiles (State.mkState board dict players playerNumber playerTurn Map.empty handSet tiles)
         

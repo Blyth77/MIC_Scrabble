@@ -11,6 +11,8 @@ module internal MultiSet
     let contains key (MS m) =
         Map.containsKey key m
     
+    let toMap (MS m) =
+        m
     let numItems key (MS ms): uint32 =
       match Map.tryFind key ms with
             | None -> 0u

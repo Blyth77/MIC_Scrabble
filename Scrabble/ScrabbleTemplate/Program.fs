@@ -57,7 +57,7 @@ let main argv =
         time (fun () -> ScrabbleUtil.Dictionary.mkDict words dictAPI)
 
     //let players = spawnMultiples "OxyphenButazone" dictionary Oxyphenbutazone.Scrabble.startGame 4
-    let players    = [("MIC", dictionary, MIC.Scrabble.startGame)]
+    let players    = [("MIC", dictionary, MIC.Scrabble.startGame); ("OxphyphenButazone", dictionary, Oxyphenbutazone.Scrabble.startGame)]
 
     do ScrabbleServer.Comm.startGame 
           board dictionary handSize timeout tiles seed port players
