@@ -263,60 +263,62 @@ module Scrabble =
         match Map.tryFind coord st.squares with
         | Some value -> Some value
         | None   -> None
-    let a (st: State.state) = Map.toList st.squares 
-        
-       
-    let generateTurn (st : State.state) = 
-                let turn = st.playerTurn + 1u
-                if turn > st.playerNumber then 1u
-                else turn
-                
     let mutable countPass = 0
+    let generateTurn (st: State.state) =
+        let turn = st.playerTurn + 1u
+        if turn > uint32 (List.length st.players) then 1u
+        else turn
     let playGame cstream pieces (st : State.state) =
-    
+       
         let rec aux (st : State.state) =
             Print.printHand pieces (State.hand st)
             let turn = generateTurn st
-
-            let newPlayers =
-                match st.players with
-                | head :: tail -> tail @ [ head ]
-                | [] -> []
-            //failwith "TEST DONE"
-
+//            let newPlayers =
+//                match st.players with
+//                | head :: tail -> tail @ [ head ]
+//                | [] -> []
+            let rec removePlayer playerNumber players =
+                match players with
+                | head :: tail when head = playerNumber -> tail
+                | head :: tail -> removePlayer playerNumber (tail @ [ head ])
+                | _ -> players
+         
             // remove the force print when you move on from manual input (or when you have learnt the format)
-            forcePrint "Input move (format '(<x-coordinate> <y-coordinate> <piece id><character><point-value> )*', note the absence of space between the last inputs)\n\n"
-            //let input =  System.Console.ReadLine()
-            //let move = RegEx.parseMove input
+            //forcePrint "Input move (format '(<x-coordinate> <y-coordinate> <piece id><character><point-value> )*', note the absence of space between the last inputs)\n\n"
 
             let move = Move.move st
-            //printfn "MOVE: %A" move
-            //let input =  System.Console.ReadLine()
-            //let move = Move.move st
-            
-            //failwith "DONE"
+            if move.Length = 0 then send cstream (SMChange (toList st.hand))
+            else send cstream (SMPlay move)
             debugPrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
-            send cstream (SMPlay move)
             let msg = recv cstream
             debugPrint (sprintf "Player %d <- Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
-            
-
 
             match msg with
             | RCM (CMPlaySuccess(ms, points, newPieces)) ->
                 (* Successful play by you. Update your state (remove old tiles, add the new ones, change turn, etc) *)
                 let newHand = State.updateHand st.hand ms newPieces
                 let newBoard = State.updateBoard ms st.squares
-                let st' = State.mkState st.board st.dict newPlayers st.playerNumber (generateTurn st) newBoard newHand st.tiles
+                let st' = State.mkState st.board st.dict st.players st.playerNumber turn newBoard newHand st.tiles
                 aux st'
             | RCM (CMPlayed (pid, ms, points)) ->
                 (* Successful play by other player. Update your state *)
                 let newBoard = State.updateBoard ms st.squares
-                let st' = State.mkState st.board st.dict newPlayers st.playerNumber (generateTurn st) newBoard st.hand st.tiles // This state needs to be updated
+                let st' = State.mkState st.board st.dict st.players pid turn newBoard st.hand st.tiles // This state needs to be updated
                 aux st'
             | RCM (CMPlayFailed (pid, ms)) ->
                 (* Failed play. Update your state *)
-                let st' = State.mkState st.board st.dict newPlayers st.playerNumber (generateTurn st) st.squares st.hand st.tiles // This state needs to be updated
+                let st' = State.mkState st.board st.dict st.players pid turn st.squares st.hand st.tiles // This state needs to be updated
+                aux st'
+            | RCM (CMChangeSuccess newTiles) ->
+                let newHand = State.updateHand empty [] newTiles
+                let st' = State.mkState st.board st.dict st.players st.playerNumber turn st.squares newHand st.tiles
+                aux st'
+            | RCM (CMPassed pid) ->
+                let st' = State.mkState st.board st.dict st.players pid turn st.squares st.hand st.tiles
+                aux st'
+            | RCM (CMForfeit pid) ->
+                let updatedPlayers = removePlayer pid st.players
+                let st' = State.mkState st.board st.dict updatedPlayers pid turn st.squares st.hand st.tiles
                 aux st'
             | RCM (CMGameOver _) -> ()
             | RCM a -> failwith (sprintf "not implmented: %A" a)
@@ -346,7 +348,7 @@ module Scrabble =
         let dict = dictf false // Uncomment if using a trie for your dictionary
         let board = Parser.mkBoardd boardP
                   
-        let handSet = List.fold (fun acc (x, k) -> MultiSet.add x k acc) MultiSet.empty hand
+        let handSet = List.fold (fun acc (x, k) -> add x k acc) empty hand
         
         let wordToString (word : Eval.word) =
             let temp = List.map (fun (x, _) -> x) word
