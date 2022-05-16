@@ -1,6 +1,6 @@
 # MIC_Scrabble
 
-Hand-in deadline: May 17, 08:00
+Hand-in deadline: May 17, 08:00 <br />
 Group_MIC: inta, magnj, clyt
 
 ---
