@@ -18,7 +18,6 @@ module internal MultiSet
             | None -> 0u
             | Some value -> value 
       
-//let (.+.) a b = a + b
     let add key count (MS ms)  =
         match Map.tryFind key ms with
          | None -> Map.add key count ms
@@ -30,7 +29,6 @@ module internal MultiSet
          | None -> Map.add key 1u ms
          | Some value ->  Map.add key (value + 1u) ms
         |> MS
-        //add key 1u ms 
 
     let remove key count (MS ms) =
      match Map.tryFind key ms with

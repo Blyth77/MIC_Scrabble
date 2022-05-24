@@ -84,23 +84,13 @@ module internal StateMonad
         let rec aux =
             function
             | []      -> None
-            // m - current list (environment)
-            // ms - last list (environment/scope) of variables
             | m :: ms -> 
                 match Map.tryFind var m with
-                // _ is a previous value of variable "var" in the list "m"
                 | Some _ ->
-                    // make a new environment by changing the existing one
-                    // we change the variable(=var) with the value(=value) in the environment m
-                    // an environment stands for a list/scope of variables
                     let env' = Map.add var value m
-                    // we want to add the changed list (env') to others
                     match aux ms with
                     | Some ms' -> Some (env'::ms')
-                    // fix this!!
                     | None -> Some (env'::ms)
-                // if we haven't found a variable in the current list
-                // then we just move on keeping our current list untouched
                 | None   ->
                     match aux ms with
                     | Some ms' -> Some (m::ms')

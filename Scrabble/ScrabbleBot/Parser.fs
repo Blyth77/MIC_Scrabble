@@ -141,16 +141,6 @@ module internal Parser
 
     type coord      = int * int
     type squareProg = Map<int, string>
-    (*type boardProg  = {
-            prog       : string;
-            squares    : Map<int, squareProg>
-            usedSquare : int
-            center     : coord
-    
-            isInfinite : bool   // For pretty-printing purposes only
-            ppSquare   : string // For pretty-printing purposes only
-        }*)
-
     type word   = (char * int) list
     type square = Map<int, squareFun>
 

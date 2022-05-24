@@ -3,7 +3,6 @@
     open StateMonad
 
     (* Code for testing *)
-
     let hello = [('h', 4); ('e', 1); ('l', 1); ('l', 1); ('O', 1)]
     let state = mkState [("x", 5); ("y", 42)] hello ["_pos_"; "_result_"]
     let emptyState = mkState [] [] []
@@ -143,35 +142,9 @@
                                                     then stmntEval s
                                                     >>>= stmntEval(While(b, s))
                                                     else stmntEval(Skip))
-       
-
-(* Part 3 (Optional) *)
-
-//    type StateBuilder() =
-//
-//        member this.Bind(f, x)    = f >>= x
-//        member this.Return(x)     = ret x
-//        member this.ReturnFrom(x) = x
-//        member this.Delay(f)      = f ()
-//        member this.Combine(a, b) = a >>= (fun _ -> b)
-//        
-//    let prog = new StateBuilder()
-//
-//    let arithEval2 a = failwith "Not implemented"
-//    let charEval2 c = failwith "Not implemented"
-//    let rec boolEval2 b = failwith "Not implemented"
-//
-//    let stmntEval2 stm = failwith "Not implemented"
-
-(* Part 4 (Optional) *) 
-
     type word = (char * int) list
     type squareFun = word -> int -> int -> Result<int, Error>
-    //type squareFun = word -> int -> int -> int
-
     type coord = int * int
-
-    //type boardFun = coord -> Result<squareFun option, Error>
     type boardFun = coord -> squareFun option
 
     type board = {
