@@ -148,7 +148,7 @@ module Move =
         let item = Map.find 1 p
         match item w t 0 with
             | StateMonad.Success x -> x
-            | StateMonad.Failure y -> 0
+            | StateMonad.Failure _ -> 0
     
     let calculatePoints (m : ((int * int) * (uint32 * (char * int))) list) state  =
         let word = toWord m
@@ -162,11 +162,11 @@ module Move =
     let rec flatten acc =
         function
         | (h,v)::t when h = 1u -> flatten (v :: acc) t 
-        | (h,v)::t when h > 1u -> flatten (v :: acc) ((h-1u,v) :: t)
+        | (h,v)::t when h > 1u -> flatten (v :: acc) ((h-1u, v) :: t)
         | _ -> acc
             
     let findWordCombination (state : State.state) (avSpace : availableSpace) dict coord =
-        let characters = flatten [] (List.map (fun (s,p) -> (p, Map.find s state.tiles)) (Map.toList (MultiSet.toMap state.hand)))
+        let characters = flatten [] (List.map (fun (s,p) -> (p, Map.find s state.tiles)) (Map.toList (toMap state.hand)))
         let combinations = allCombinations characters                
         let space = (fun (x,y) -> if x > y then (x, true) else (y, false)) avSpace
         let allPossible = List.filter (fun m -> Dictionary.lookup m dict) combinations |> List.filter (fun m -> m.Length <= (fun (x,_) -> x) ((fun (x,y) -> (int x,y)) space))        
@@ -176,7 +176,7 @@ module Move =
 
     let checkSquareFree (coord: coord) (st : State.state) =
         match Map.tryFind coord st.squares with
-        | Some value -> false
+        | Some _ -> false
         | None  -> true                
 
     let rec countSpacesDown count (x, y) (st: State.state) =
@@ -233,7 +233,6 @@ module Move =
                 findWordCombination state (7u,7u) state.dict (-1,0)
         if (List.length allPossible = 0) then List.empty else (fun (x, _) -> x) (List.sortByDescending (fun (_, y) -> y) allPossible |> List.head)
        
-            
                 
 module Scrabble =
     type Direction =
@@ -245,25 +244,6 @@ module Scrabble =
         | Direction.down -> (x, y + 1)
         | Direction.across -> (x + 1, y)
         | _ -> (x,y)
-    let idTile (tile: uint32 * (char * int)) =
-        fst tile
-    let pvTile (tile: uint32 * (char * int)) =
-        snd (snd tile)
-
-    let findTile id (tiles: Map<uint32, tile>) =
-        match Map.tryFind id tiles with
-        | Some v -> v
-        | None -> failwith "."
-    let ifSquareFree (coord: coord) (st : State.state) =
-        match Map.tryFind coord st.squares with
-        | Some value -> Some value
-        | None   -> None
-    let mutable countPass = 0
-    let generateTurn (st: State.state) =
-        let turn = st.playerTurn + 1u
-        if turn > uint32 (List.length st.players) then 1u
-        else turn
-        
     let rec removePlayer playerNumber players =
         match players with
         | head :: tail when head = playerNumber -> tail
@@ -271,13 +251,9 @@ module Scrabble =
         | _ -> players
     let playGame cstream pieces (st : State.state) =
         let rec aux (st : State.state) =
-            
-
-            
             let msg =
                 if (st.playerNumber = st.playerTurn) then
                     Print.printHand pieces (State.hand st)
-                    let turn = generateTurn st
                     let move = Move.move st
                     if move.Length = 0 then send cstream (SMChange (toList st.hand))
                     else send cstream (SMPlay move)
